@@ -1,0 +1,139 @@
+# MagmaFFA Configuracion de niveles por lujuanaabril
+
+levels:
+  1:
+    xp_required: 0
+    rewards:
+      - "give %player% cooked_beef 5"
+      - "tell %player% ¡Bienvenido al sistema de niveles de FFA!"
+
+  2:
+    xp_required: 50
+    rewards:
+      - "give %player% golden_apple 1"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel 2!"
+
+  3:
+    xp_required: 100
+    rewards:
+      - "give %player% experience_bottle 5"
+
+  4:
+    xp_required: 150
+    rewards:
+      - "give %player% golden_apple 2"
+
+  5:
+    xp_required: 200
+    rewards:
+      - "give %player% diamond 1"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel 5!"
+
+  6:
+    xp_required: 250
+    rewards:
+      - "give %player% experience_bottle 8"
+
+  7:
+    xp_required: 300
+    rewards:
+      - "give %player% ender_pearl 2"
+
+  8:
+    xp_required: 350
+    rewards:
+      - "give %player% golden_apple 3"
+
+  9:
+    xp_required: 400
+    rewards:
+      - "give %player% experience_bottle 10"
+
+  10:
+    xp_required: 450
+    rewards:
+      - "give %player% diamond 2"
+      - "give %player% enchanted_golden_apple 1"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel 10!"
+
+  11:
+    xp_required: 600
+    rewards:
+      - "give %player% experience_bottle 15"
+
+  12:
+    xp_required: 750
+    rewards:
+      - "give %player% golden_apple 4"
+
+  13:
+    xp_required: 900
+    rewards:
+      - "give %player% ender_pearl 3"
+
+  14:
+    xp_required: 1050
+    rewards:
+      - "give %player% experience_bottle 20"
+
+  15:
+    xp_required: 1200
+    rewards:
+      - "give %player% diamond 3"
+      - "give %player% enchanted_golden_apple 1"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel 15!"
+
+  16:
+    xp_required: 1350
+    rewards:
+      - "give %player% golden_apple 5"
+
+  17:
+    xp_required: 1500
+    rewards:
+      - "give %player% ender_pearl 4"
+
+  18:
+    xp_required: 1650
+    rewards:
+      - "give %player% experience_bottle 25"
+
+  19:
+    xp_required: 1800
+    rewards:
+      - "give %player% golden_apple 6"
+
+  20:
+    xp_required: 1950
+    rewards:
+      - "give %player% diamond 5"
+      - "give %player% enchanted_golden_apple 2"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel 20!"
+
+  21:
+    xp_required: 2100
+    rewards:
+      - "give %player% experience_bottle 30"
+
+  22:
+    xp_required: 2250
+    rewards:
+      - "give %player% golden_apple 7"
+
+  23:
+    xp_required: 2400
+    rewards:
+      - "give %player% ender_pearl 5"
+
+  24:
+    xp_required: 2550
+    rewards:
+      - "give %player% experience_bottle 40"
+
+  25:
+    xp_required: 2700
+    rewards:
+      - "give %player% netherite_ingot 1"
+      - "give %player% diamond 10"
+      - "give %player% enchanted_golden_apple 3"
+      - "broadcast §x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f¡%player% ha alcanzado el nivel MÁXIMO 25! ¡Felicidades!"

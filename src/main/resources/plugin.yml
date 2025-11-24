@@ -1,0 +1,18 @@
+name: MagmaFFA
+version: '1.0'
+main: us.magmamc.magmaFFA.MagmaFFA
+api-version: '1.21'
+authors: [ MagmaMC ]
+commands:
+  ffa:
+    description: Main command for MagmaFFA plugin
+    usage: /ffa <create/setspawn/setkit/editkit> <name> or /ffa <name>
+    permission: magmaffa.player
+    permission-message: You don't have permission to use this command!
+permissions:
+  magmaffa.admin:
+    description: Allows full access to MagmaFFA commands
+    default: op
+  magmaffa.player:
+    description: Allows use of basic MagmaFFA commands
+    default: true
