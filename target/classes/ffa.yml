@@ -1,0 +1,7 @@
+# Archivo de configuración de Arenas y Kits
+# Este archivo se llena automáticamente usando los comandos:
+# /ffa create <nombre>
+# /ffa setspawn <nombre>
+# /ffa setkit <nombre>
+
+ffas:

@@ -1,0 +1,49 @@
+# Configuración Principal de MagmaFFA
+
+# Credenciales de la Base de Datos (MariaDB / MySQL)
+database:
+  host: "172.18.0.1"
+  port: "3306"
+  name: "s6_MAGMAFFA"
+  username: "u6_rPcsQG4TsA"
+  password: "pzZkrei6v5es0QxLb=!.!8Yr"
+
+# Opciones de optimización
+optimization:
+  auto-save-interval: 10
+
+# Configuración del Lobby / Spawn Principal
+lobby:
+  location: null # Se autocompleta con /ffa setlobby
+
+  # Ítem que abre el menú (Item Join)
+  join-item:
+    enabled: true
+    material: IRON_SWORD
+    name: "&a&lSELECTOR DE ARENAS &7(Click Derecho)"
+    lore:
+      - "&7Haz click derecho para"
+      - "&7elegir tu arena favorita."
+    slot: 4
+    # Comando que ejecuta al hacer click (sin la /)
+    command: "dm open menu"
+    # ¿Evitar que el jugador mueva este item en el inventario?
+    prevent-move: true
+
+# Configuración del Spawn (NUEVO)
+spawn-settings:
+  on-spawn:
+    clear-fire: true
+    clear-inventory: true
+    clear-effects: true
+    clear-ender-pearls: true
+
+  auto-respawn: true
+
+  countdown:
+    enabled: true
+    timer: 3
+    cancel-on-move: true
+
+  force-spawn-on-join: true
+  always-respawn-at-spawn: true

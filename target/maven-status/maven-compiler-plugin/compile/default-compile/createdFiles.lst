@@ -1,7 +1,14 @@
-us\magmamc\magmaFFA\FFALevelingSystem$PlayerLevelData.class
+us\magmamc\magmaFFA\database\DatabaseManager.class
+us\magmamc\magmaFFA\managers\PlayerManager$PlayerData.class
+us\magmamc\magmaFFA\MagmaFFA$1.class
+us\magmamc\magmaFFA\MagmaFFA.class
+us\magmamc\magmaFFA\MagmaFFA$3.class
+us\magmamc\magmaFFA\MagmaFFA$SpectateCommand.class
+us\magmamc\magmaFFA\MagmaFFA$2.class
 us\magmamc\magmaFFA\FFALevelingSystem.class
 us\magmamc\magmaFFA\FFAPlaceholderExpansion.class
 us\magmamc\magmaFFA\MagmaFFA$FFACommandExecutor.class
 us\magmamc\magmaFFA\MagmaFFA$FFATabCompleter.class
-us\magmamc\magmaFFA\MagmaFFA$1.class
-us\magmamc\magmaFFA\MagmaFFA.class
+us\magmamc\magmaFFA\utils\InventorySerializer.class
+us\magmamc\magmaFFA\MagmaFFA$SpawnCommand.class
+us\magmamc\magmaFFA\managers\PlayerManager.class
