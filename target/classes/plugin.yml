@@ -6,17 +6,22 @@ authors: [ MagmaMC ]
 commands:
   ffa:
     description: Main command for MagmaFFA plugin
-    usage: /ffa <create/setspawn/setkit/editkit/setlobby> <name>
+    usage: /ffa <create/setspawn/setkit/editkit/setlobby/joinbest> <name>
     permission: magmaffa.player
     permission-message: You don't have permission to use this command!
   spawn:
     description: Teletransportarse al lobby principal
     usage: /spawn
     permission: magmaffa.player
+  spectate:
+    description: Espectar a un jugador
+    usage: /spectate <jugador>
+    permission: magmaffa.admin
+
 permissions:
   magmaffa.admin:
     description: Allows full access to MagmaFFA commands
     default: op
   magmaffa.player:
-    description: Allows use of basic MagmaFFA commands
+    description: Allows use of basic MagmaFFA commands (join, joinbest, spawn)
     default: true

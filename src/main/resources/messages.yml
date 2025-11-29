@@ -1,0 +1,55 @@
+# Archivo de Mensajes de MagmaFFA
+# Formato MiniMessage: https://docs.advntr.dev/minimessage/format.html
+
+# Prefijo global para mensajes
+prefix: "<gradient:#fb7412:#f42236><bold>FFA</bold></gradient> <dark_gray>▸</dark_gray> <gray>"
+
+messages:
+  no-permission: "<red>No tienes permiso para usar este comando."
+  player-only: "<red>Solo jugadores."
+  player-not-found: "<red>Jugador no encontrado."
+  not-in-ffa: "<red>No estás en una arena FFA."
+
+  spawn-set: "<green>Lobby/Spawn principal establecido correctamente."
+
+  arena-created: "<green>Arena creada: <yellow>%name%"
+  arena-exists: "<red>Esa arena ya existe."
+  arena-not-found: "<red>Arena no encontrada."
+  no-arenas-available: "<red>No hay arenas disponibles en este momento."
+  spawn-arena-set: "<green>Spawn de arena establecido."
+  kit-updated: "<green>Kit predeterminado actualizado."
+  arena-deleted: "<green>Arena eliminada."
+  config-reloaded: "<green>Configuración recargada correctamente."
+
+  kit-saved: "<green>¡KIT personal guardado correctamente!"
+  kit-reset: "<yellow>Kit reestablecido al predeterminado."
+
+  spawn-teleport: "<green>Has sido enviado al spawn."
+  spawn-countdown: "<yellow>Teletransportando en <red>%seconds%</red> segundos. ¡No te muevas!"
+
+  teleport-cancelled: "<red>Teletransporte cancelado por movimiento."
+  already-teleporting: "<red>Ya te estás teletransportando."
+
+  spectator-mode: "<green>Ahora estás espectando a <yellow>%player%"
+  spectator-leave-tip: "<gray>Usa <white>/spawn</white> <gray>para salir."
+  spectate-self: "<red>No puedes espectarte a ti mismo."
+
+  crafting-disabled: "<red>No puedes craftear items en la arena."
+
+  # DISEÑO MODERNO (Minimalista)
+  # Se verá como: "+ Jugador » Arena"
+  join-arena: "<green><bold>+</bold> <gray>%player% <dark_gray>» <yellow>%name%"
+
+  joining-best-arena: "<green>Uniéndote a la arena más poblada: <yellow>%arena% <gray>(<aqua>%count%</aqua> Jugadores)"
+
+  level-max: "<gradient:gold:yellow>¡Ya estás en el nivel máximo!</gradient>"
+  level-up: "<gradient:green:lime>¡Has subido al nivel %level%!</gradient>"
+
+  cooldown-active: "<red>Cooldown activo para %player%. Espera %time% para ganar XP."
+  xp-gain: "<gray>Has ganado <gradient:#fb7412:#f42236>%amount% XP</gradient> <gray>por eliminar a <red>%player%"
+
+  # Actionbar al matar
+  death-message-actionbar: "<gradient:#fb7412:#f42236><bold>FFA</bold></gradient> <dark_gray>➡</dark_gray> <green>+%health%❤</green> <gray>por asesinar a <red>%player%"
+
+  # Tip con Hover y Click event
+  tip-editkit: "<yellow><bold>TIP</bold></yellow> <dark_gray>▸</dark_gray> <gray>Personaliza tu kit con <white>(<hover:show_text:'<green>Click para editar'><click:run_command:'/ffa editkit %arena%'>/ffa editkit %arena%</click>)</white></gray>"

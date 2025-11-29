@@ -4,4 +4,4 @@
 # /ffa setspawn <nombre>
 # /ffa setkit <nombre>
 
-ffas:
+ffas: []

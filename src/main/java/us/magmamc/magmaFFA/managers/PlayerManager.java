@@ -27,8 +27,7 @@ public class PlayerManager {
         startAutoSaveTask();
     }
 
-    // --- TAREA DE AUTO-GUARDADO (Optimización) ---
-
+    // --- TAREA DE AUTO-GUARDADO (OPTIMIZADA) ---
     private void startAutoSaveTask() {
         // Leer configuración
         int intervalMinutes = plugin.getConfig().getInt("optimization.auto-save-interval", 10);
@@ -41,13 +40,29 @@ public class PlayerManager {
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             if (playerDataCache.isEmpty()) return;
 
-            plugin.getLogger().info("Ejecutando auto-guardado de datos (Optimizado)...");
-            int count = 0;
+            plugin.getLogger().info("Ejecutando auto-guardado de datos...");
 
-            // Iteramos sobre los jugadores en caché (solo los conectados)
-            for (UUID uuid : playerDataCache.keySet()) {
-                savePlayerSyncToDb(uuid); // Guardamos sin limpiar memoria
-                count++;
+            // OPTIMIZACIÓN: Abrimos la conexión UNA SOLA VEZ
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                // Desactivar auto-commit para transacciones masivas (mejora rendimiento)
+                boolean originalAutoCommit = conn.getAutoCommit();
+                conn.setAutoCommit(false);
+
+                for (UUID uuid : playerDataCache.keySet()) {
+                    try {
+                        // Usamos la misma conexión para todos
+                        savePlayerData(conn, uuid);
+                    } catch (SQLException e) {
+                        plugin.getLogger().warning("Error guardando a " + uuid + ": " + e.getMessage());
+                    }
+                }
+
+                conn.commit();
+                conn.setAutoCommit(originalAutoCommit);
+
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error fatal en auto-guardado: " + e.getMessage());
+                e.printStackTrace();
             }
 
         }, intervalTicks, intervalTicks);
@@ -93,28 +108,27 @@ public class PlayerManager {
 
     /**
      * Guarda los datos del jugador en la DB pero MANTIENE la caché.
-     * Útil para auto-save o checkpoints.
+     * Útil para checkpoints manuales.
      */
     public void savePlayer(UUID uuid) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> savePlayerSyncToDb(uuid));
     }
 
     /**
-     * Guarda los datos y LIMPIA la caché de forma ASÍNCRONA.
-     * Útil para cuando el jugador se desconecta (Quit) durante el juego normal.
+     * CORREGIDO: Guarda los datos y LIMPIA la caché de forma segura.
+     * Se asegura de que el remove ocurra DESPUÉS de guardar.
      */
     public void saveAndUnloadPlayer(UUID uuid) {
-        // Guardamos async
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> savePlayerSyncToDb(uuid));
-
-        // Limpiamos memoria inmediatamente (ya que el jugador se fue)
-        playerDataCache.remove(uuid);
-        kitCache.remove(uuid);
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            savePlayerSyncToDb(uuid); // 1. Guardar
+            playerDataCache.remove(uuid); // 2. Borrar de caché (MISMO HILO)
+            kitCache.remove(uuid);
+        });
     }
 
     /**
      * Guarda los datos y LIMPIA la caché de forma SÍNCRONA.
-     * Útil y OBLIGATORIO para onDisable (apagado del servidor).
+     * OBLIGATORIO para onDisable.
      */
     public void saveAndUnloadPlayerSync(UUID uuid) {
         savePlayerSyncToDb(uuid);
@@ -122,30 +136,40 @@ public class PlayerManager {
         kitCache.remove(uuid);
     }
 
-    // Método interno que realiza la escritura SQL real
+    // Método wrapper para compatibilidad, abre conexión individual
     private void savePlayerSyncToDb(UUID uuid) {
+        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+            savePlayerData(conn, uuid);
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Error guardando datos SQL para " + uuid + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // NUEVO MÉTODO: Realiza el guardado usando una conexión existente
+    private void savePlayerData(Connection conn, UUID uuid) throws SQLException {
         if (!playerDataCache.containsKey(uuid)) return;
 
         PlayerData data = playerDataCache.get(uuid);
         Map<String, ItemStack[]> kits = kitCache.get(uuid);
 
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            // Guardar Stats (Upsert)
-            PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO magma_players (uuid, level, xp) VALUES (?, ?, ?) " +
-                            "ON DUPLICATE KEY UPDATE level = ?, xp = ?");
+        // Guardar Stats (Upsert)
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "INSERT INTO magma_players (uuid, level, xp) VALUES (?, ?, ?) " +
+                        "ON DUPLICATE KEY UPDATE level = ?, xp = ?")) {
             stmt.setString(1, uuid.toString());
             stmt.setInt(2, data.getLevel());
             stmt.setInt(3, data.getXp());
             stmt.setInt(4, data.getLevel());
             stmt.setInt(5, data.getXp());
             stmt.executeUpdate();
+        }
 
-            // Guardar Kits (Si existen)
-            if (kits != null && !kits.isEmpty()) {
-                PreparedStatement kitStmt = conn.prepareStatement(
-                        "INSERT INTO magma_kits (uuid, ffa_name, kit_data) VALUES (?, ?, ?) " +
-                                "ON DUPLICATE KEY UPDATE kit_data = ?");
+        // Guardar Kits (Si existen)
+        if (kits != null && !kits.isEmpty()) {
+            try (PreparedStatement kitStmt = conn.prepareStatement(
+                    "INSERT INTO magma_kits (uuid, ffa_name, kit_data) VALUES (?, ?, ?) " +
+                            "ON DUPLICATE KEY UPDATE kit_data = ?")) {
 
                 for (Map.Entry<String, ItemStack[]> entry : kits.entrySet()) {
                     String base64 = InventorySerializer.toBase64(entry.getValue());
@@ -157,10 +181,6 @@ public class PlayerManager {
                 }
                 kitStmt.executeBatch();
             }
-
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Error guardando datos SQL para " + uuid + ": " + e.getMessage());
-            e.printStackTrace();
         }
     }
 

@@ -14,21 +14,26 @@ optimization:
 
 # Configuración del Lobby / Spawn Principal
 lobby:
-  location: null # Se autocompleta con /ffa setlobby
-
   # Ítem que abre el menú (Item Join)
   join-item:
     enabled: true
     material: IRON_SWORD
-    name: "&a&lSELECTOR DE ARENAS &7(Click Derecho)"
+    name: '&a&lSELECTOR DE ARENAS &7(Click Derecho)'
     lore:
-      - "&7Haz click derecho para"
-      - "&7elegir tu arena favorita."
-    slot: 4
+      - '&7Haz click derecho para'
+      - '&7elegir tu arena favorita.'
+    slot: 0
     # Comando que ejecuta al hacer click (sin la /)
-    command: "dm open menu"
+    command: dm open ffa %player%
     # ¿Evitar que el jugador mueva este item en el inventario?
     prevent-move: true
+  location:
+    world: world
+    x: 69.5
+    y: 97.0
+    z: 581.5
+    yaw: -179.6
+    pitch: -0.3
 
 # Configuración del Spawn (NUEVO)
 spawn-settings:

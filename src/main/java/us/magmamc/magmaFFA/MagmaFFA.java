@@ -13,11 +13,16 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+// Adventure & MiniMessage imports
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.title.Title;
+
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey; // Import necesario
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -52,6 +57,7 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType; // Import necesario
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -63,6 +69,9 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
     private File ffaConfigFile;
     private FileConfiguration ffaConfig;
+
+    private File messagesConfigFile;
+    private FileConfiguration messagesConfig;
 
     private final Map<String, ItemStack[]> defaultKits = new HashMap<>();
     private final Map<UUID, String> playerFFAs = new HashMap<>();
@@ -79,13 +88,17 @@ public class MagmaFFA extends JavaPlugin implements Listener {
     private PlayerManager playerManager;
 
     private static final String ADMIN_PERMISSION = "magmaffa.admin";
-    private final String PREFIX = "§x§c§8§0§5§0§5§lF§x§e§3§0§3§0§3§lF§x§f§d§0§0§0§0§lA §8▸ §f";
-    private final String TIP = "§e§lTIP §8▸ §f";
 
     private static final String NORMAL_CHARS = "abcdefghijklmnopqrstuvwxyz";
     private static final String SMALL_CHARS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢ";
 
     private final Map<Inventory, String> kitEditorInventories = new HashMap<>();
+
+    // Instancia de MiniMessage
+    private final MiniMessage mm = MiniMessage.miniMessage();
+
+    // Key para identificar el item del lobby de forma segura
+    private final NamespacedKey lobbyItemKey = new NamespacedKey(this, "lobby_selector");
 
     @Override
     public void onEnable() {
@@ -102,6 +115,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
         }
 
         this.loadFFAConfig();
+        this.loadMessagesConfig();
         this.loadKitsAndSpawns();
         this.loadLobbyLocation();
 
@@ -118,7 +132,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             this.getCommand("spectate").setExecutor(new SpectateCommand());
         }
 
-        this.levelingSystem = new FFALevelingSystem(this, PREFIX);
+        this.levelingSystem = new FFALevelingSystem(this);
 
         if (this.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             this.getLogger().info("PlaceholderAPI encontrado, registrando expansión...");
@@ -145,6 +159,30 @@ public class MagmaFFA extends JavaPlugin implements Listener {
         pendingTeleports.clear();
     }
 
+    // --- MINI MESSAGE HELPERS ---
+    public Component getComponent(String key) {
+        String msg = messagesConfig.getString("messages." + key);
+        if (msg == null) return Component.text("Mensaje no encontrado: " + key);
+        String prefix = messagesConfig.getString("prefix", "");
+        return mm.deserialize("<!italic>" + prefix + msg);
+    }
+
+    public Component getRawComponent(String text) {
+        return mm.deserialize("<!italic>" + text);
+    }
+
+    public Component parse(String text) {
+        return mm.deserialize("<!italic>" + text);
+    }
+
+    public String getMessageString(String key) {
+        return messagesConfig.getString("messages." + key, "Missing: " + key);
+    }
+
+    public String getPrefixString() {
+        return messagesConfig.getString("prefix", "");
+    }
+
     public DatabaseManager getDatabaseManager() { return databaseManager; }
     public PlayerManager getPlayerManager() { return playerManager; }
     public FFALevelingSystem getLevelingSystem() { return levelingSystem; }
@@ -152,6 +190,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
     public void reloadAllConfigs() {
         reloadConfig();
         loadFFAConfig();
+        loadMessagesConfig();
         defaultKits.clear();
         spawns.clear();
         loadKitsAndSpawns();
@@ -160,6 +199,15 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             levelingSystem.reloadConfig();
         }
         getLogger().info("Configuraciones recargadas correctamente.");
+    }
+
+    private void loadMessagesConfig() {
+        this.messagesConfigFile = new File(this.getDataFolder(), "messages.yml");
+        if (!this.messagesConfigFile.exists()) {
+            this.messagesConfigFile.getParentFile().mkdirs();
+            this.saveResource("messages.yml", false);
+        }
+        this.messagesConfig = YamlConfiguration.loadConfiguration(this.messagesConfigFile);
     }
 
     private void loadFFAConfig() {
@@ -266,7 +314,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             if (c >= 'a' && c <= 'z') {
                 chars[i] = SMALL_CHARS.charAt(c - 'a');
             } else if (c >= 'A' && c <= 'Z') {
-                chars[i] = c;
+                chars[i] = SMALL_CHARS.charAt(c - 'A');
             }
         }
         return new String(chars);
@@ -281,24 +329,41 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        String name = ChatColor.translateAlternateColorCodes('&', getConfig().getString("lobby.join-item.name", "&aSelector"));
-        meta.setDisplayName(name);
 
-        List<String> lore = getConfig().getStringList("lobby.join-item.lore");
-        List<String> coloredLore = new ArrayList<>();
-        for (String l : lore) {
-            coloredLore.add(ChatColor.translateAlternateColorCodes('&', l));
+        String nameCfg = getConfig().getString("lobby.join-item.name", "<green>Selector");
+        meta.displayName(getRawComponent(nameCfg));
+
+        List<String> loreCfg = getConfig().getStringList("lobby.join-item.lore");
+        List<Component> loreComponents = new ArrayList<>();
+        for (String l : loreCfg) {
+            loreComponents.add(getRawComponent(l));
         }
-        meta.setLore(coloredLore);
+        meta.lore(loreComponents);
+
+        // MARCA EL ÍTEM CON UN TAG PERSISTENTE PARA IDENTIFICARLO FÁCILMENTE
+        meta.getPersistentDataContainer().set(lobbyItemKey, PersistentDataType.BYTE, (byte) 1);
+
         item.setItemMeta(meta);
 
         int slot = getConfig().getInt("lobby.join-item.slot", 4);
         player.getInventory().setItem(slot, item);
     }
 
+    // MÉTODO AUXILIAR PARA IDENTIFICAR EL ÍTEM DEL LOBBY
+    private boolean isLobbyItem(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return false;
+        // 1. Chequeo por PersistentDataContainer (lo más seguro)
+        if (item.getItemMeta().getPersistentDataContainer().has(lobbyItemKey, PersistentDataType.BYTE)) return true;
+
+        // 2. Chequeo por Material (Backup si el item es viejo o el PDC falló)
+        String matName = getConfig().getString("lobby.join-item.material", "COMPASS");
+        Material mat = Material.getMaterial(matName);
+        return item.getType() == mat;
+    }
+
     public void sendToSpawn(Player player) {
         if (this.lobbyLocation == null) {
-            player.sendMessage(PREFIX + "§cEl spawn no ha sido establecido. Usa /ffa setlobby");
+            player.sendMessage(getRawComponent("<red>El spawn no ha sido establecido. Usa /ffa setlobby"));
             return;
         }
 
@@ -342,62 +407,52 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
         this.playerFFAs.remove(player.getUniqueId());
 
-        player.sendMessage(PREFIX + "Has sido enviado al spawn.");
+        player.sendMessage(getComponent("spawn-teleport"));
     }
 
-    // --- LÓGICA DE ESPECTADOR ---
+    // ... (Resto de métodos de espectador y spawn sin cambios) ...
     private void enableSpectatorMode(Player player, Player target) {
         if (playerFFAs.containsKey(player.getUniqueId())) {
             playerFFAs.remove(player.getUniqueId());
             player.getInventory().clear();
         }
-
         spectators.add(player.getUniqueId());
-
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(true);
         player.setFlying(true);
         player.getInventory().clear();
-
-        // Ocultar al espectador de todos
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.hidePlayer(this, player);
         }
-
         player.teleport(target.getLocation());
-        player.sendMessage(PREFIX + "§aAhora estás espectando a §e" + target.getName());
-        player.sendMessage(PREFIX + "§7Usa §f/spawn §7para salir.");
+        String msg = getPrefixString() + getMessageString("spectator-mode").replace("%player%", target.getName());
+        player.sendMessage(parse(msg));
+        String tip = getPrefixString() + getMessageString("spectator-leave-tip");
+        player.sendMessage(parse(tip));
     }
 
     private void disableSpectatorMode(Player player) {
         spectators.remove(player.getUniqueId());
-
         player.setFlying(false);
         player.setAllowFlight(false);
-
-        // Mostrar al jugador
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.showPlayer(this, player);
         }
-        // El GameMode y demás se resetean en sendToSpawn
     }
 
     private void startSpawnCountdown(Player player) {
         if (pendingTeleports.containsKey(player.getUniqueId())) {
-            player.sendMessage(PREFIX + "Ya te estás teletransportando.");
+            player.sendMessage(getComponent("already-teleporting"));
             return;
         }
-
         int seconds = getConfig().getInt("spawn-settings.countdown.timer", 3);
-
         if (seconds <= 0 || player.hasPermission(ADMIN_PERMISSION)) {
             sendToSpawn(player);
             return;
         }
-
-        player.sendMessage(PREFIX + "Teletransportando en §e" + seconds + " segundos§f. ¡No te muevas!");
+        String msg = getPrefixString() + getMessageString("spawn-countdown").replace("%seconds%", String.valueOf(seconds));
+        player.sendMessage(parse(msg));
         teleportingPlayers.add(player.getUniqueId());
-
         BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {
@@ -406,7 +461,6 @@ public class MagmaFFA extends JavaPlugin implements Listener {
                 sendToSpawn(player);
             }
         }.runTaskLater(this, seconds * 20L);
-
         pendingTeleports.put(player.getUniqueId(), task);
     }
 
@@ -425,66 +479,24 @@ public class MagmaFFA extends JavaPlugin implements Listener {
                     if (task != null) {
                         task.cancel();
                         teleportingPlayers.remove(player.getUniqueId());
-                        player.sendMessage(PREFIX + "§cTeletransporte cancelado por movimiento.");
+                        player.sendMessage(getComponent("teleport-cancelled"));
                     }
                 }
             }
         }
     }
 
-    // --- EVENTOS DE ESPECTADOR (BLOQUEOS) ---
+    // ... (Eventos de espectador sin cambios) ...
+    @EventHandler public void onSpectatorInteract(PlayerInteractEvent event) { if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorDamage(EntityDamageByEntityEvent event) { if (event.getDamager() instanceof Player && spectators.contains(event.getDamager().getUniqueId())) event.setCancelled(true); if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorDamageSelf(EntityDamageEvent event) { if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorBreak(BlockBreakEvent event) { if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorPlace(BlockPlaceEvent event) { if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorPickup(PlayerPickupItemEvent event) { if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorDrop(PlayerDropItemEvent event) { if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true); }
+    @EventHandler public void onSpectatorHunger(FoodLevelChangeEvent event) { if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) event.setCancelled(true); }
 
-    @EventHandler
-    public void onSpectatorInteract(PlayerInteractEvent event) {
-        if (spectators.contains(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onSpectatorDamage(EntityDamageByEntityEvent event) {
-        if (event.getDamager() instanceof Player && spectators.contains(event.getDamager().getUniqueId())) {
-            event.setCancelled(true);
-        }
-        if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onSpectatorDamageSelf(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
-    @EventHandler
-    public void onSpectatorBreak(BlockBreakEvent event) {
-        if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onSpectatorPlace(BlockPlaceEvent event) {
-        if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onSpectatorPickup(PlayerPickupItemEvent event) {
-        if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onSpectatorDrop(PlayerDropItemEvent event) {
-        if (spectators.contains(event.getPlayer().getUniqueId())) event.setCancelled(true);
-    }
-
-    @EventHandler
-    public void onSpectatorHunger(FoodLevelChangeEvent event) {
-        if (event.getEntity() instanceof Player && spectators.contains(event.getEntity().getUniqueId())) {
-            event.setCancelled(true);
-        }
-    }
-
+    // CORRECCIÓN: Detección robusta del ítem del lobby
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (spectators.contains(event.getPlayer().getUniqueId())) {
@@ -496,15 +508,12 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             Player player = event.getPlayer();
             ItemStack item = event.getItem();
 
-            if (item != null && item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-                String configName = ChatColor.translateAlternateColorCodes('&', getConfig().getString("lobby.join-item.name", ""));
-                if (item.getItemMeta().getDisplayName().equals(configName)) {
-                    String cmd = getConfig().getString("lobby.join-item.command");
-                    if (cmd != null && !cmd.isEmpty()) {
-                        String finalCmd = cmd.replace("%player%", player.getName());
-                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
-                        event.setCancelled(true);
-                    }
+            if (isLobbyItem(item)) {
+                String cmd = getConfig().getString("lobby.join-item.command");
+                if (cmd != null && !cmd.isEmpty()) {
+                    String finalCmd = cmd.replace("%player%", player.getName());
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
+                    event.setCancelled(true);
                 }
             }
         }
@@ -520,21 +529,12 @@ public class MagmaFFA extends JavaPlugin implements Listener {
         if (!getConfig().getBoolean("lobby.join-item.prevent-move", true)) return;
         if (event.getPlayer().hasPermission(ADMIN_PERMISSION)) return;
 
-        String configName = ChatColor.translateAlternateColorCodes('&', getConfig().getString("lobby.join-item.name", ""));
-
-        ItemStack main = event.getMainHandItem();
-        if (main != null && main.hasItemMeta() && main.getItemMeta().hasDisplayName()) {
-            if (main.getItemMeta().getDisplayName().equals(configName)) {
-                event.setCancelled(true);
-                return;
-            }
+        if (isLobbyItem(event.getMainHandItem())) {
+            event.setCancelled(true);
+            return;
         }
-
-        ItemStack off = event.getOffHandItem();
-        if (off != null && off.hasItemMeta() && off.getItemMeta().hasDisplayName()) {
-            if (off.getItemMeta().getDisplayName().equals(configName)) {
-                event.setCancelled(true);
-            }
+        if (isLobbyItem(event.getOffHandItem())) {
+            event.setCancelled(true);
         }
     }
 
@@ -548,14 +548,9 @@ public class MagmaFFA extends JavaPlugin implements Listener {
         if (getConfig().getBoolean("lobby.join-item.prevent-move", true)
                 && !event.getWhoClicked().hasPermission(ADMIN_PERMISSION)) {
 
-            String configName = ChatColor.translateAlternateColorCodes('&', getConfig().getString("lobby.join-item.name", ""));
-
-            ItemStack current = event.getCurrentItem();
-            if (current != null && current.hasItemMeta() && current.getItemMeta().hasDisplayName()) {
-                if (current.getItemMeta().getDisplayName().equals(configName)) {
-                    if (!isKitEditorInventory(event.getView().getTopInventory())) {
-                        event.setCancelled(true);
-                    }
+            if (isLobbyItem(event.getCurrentItem())) {
+                if (!isKitEditorInventory(event.getView().getTopInventory())) {
+                    event.setCancelled(true);
                 }
             }
 
@@ -563,11 +558,9 @@ public class MagmaFFA extends JavaPlugin implements Listener {
                 int hotbarSlot = event.getHotbarButton();
                 if (hotbarSlot >= 0) {
                     ItemStack hotbarItem = event.getWhoClicked().getInventory().getItem(hotbarSlot);
-                    if (hotbarItem != null && hotbarItem.hasItemMeta() && hotbarItem.getItemMeta().hasDisplayName()) {
-                        if (hotbarItem.getItemMeta().getDisplayName().equals(configName)) {
-                            if (!isKitEditorInventory(event.getView().getTopInventory())) {
-                                event.setCancelled(true);
-                            }
+                    if (isLobbyItem(hotbarItem)) {
+                        if (!isKitEditorInventory(event.getView().getTopInventory())) {
+                            event.setCancelled(true);
                         }
                     }
                 }
@@ -594,13 +587,13 @@ public class MagmaFFA extends JavaPlugin implements Listener {
                     event.setCancelled(true);
                     this.savePersonalKitFromEditor(player, inventory, ffaName);
                     player.closeInventory();
-                    player.sendMessage(PREFIX + "¡KIT personal guardado correctamente!");
+                    player.sendMessage(getComponent("kit-saved"));
                     return;
                 }
                 if (slot == 7) {
                     event.setCancelled(true);
                     this.resetToDefaultKit(player, inventory, ffaName);
-                    player.sendMessage(PREFIX + "Kit reestablecido al predeterminado.");
+                    player.sendMessage(getComponent("kit-reset"));
                     return;
                 }
                 if (slot == 8) {
@@ -691,12 +684,8 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             return;
         }
 
-        ItemStack item = event.getItemDrop().getItemStack();
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            String configName = ChatColor.translateAlternateColorCodes('&', getConfig().getString("lobby.join-item.name", ""));
-            if (item.getItemMeta().getDisplayName().equals(configName)) {
-                event.setCancelled(true);
-            }
+        if (isLobbyItem(event.getItemDrop().getItemStack())) {
+            event.setCancelled(true);
         }
     }
 
@@ -707,7 +696,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
         if (this.playerFFAs.containsKey(player.getUniqueId())) {
             event.setCancelled(true);
-            player.sendMessage(PREFIX + "§cNo puedes craftear items en la arena.");
+            player.sendMessage(getComponent("crafting-disabled"));
         }
         else if (!player.hasPermission(ADMIN_PERMISSION)) {
             event.setCancelled(true);
@@ -773,7 +762,12 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
                     double healthGained = 20.0 - killer.getHealth();
                     DecimalFormat df = new DecimalFormat("#,##");
-                    killer.sendActionBar("§x§f§f§2§c§2§c§lFFA §8➡ §x§f§f§5§a§6§4+" + df.format(healthGained) + "❤§x§e§4§e§4§e§4 por asesinar a §x§5§d§e§2§f§f" + victim.getName());
+
+                    String actionbarStr = getMessageString("death-message-actionbar")
+                            .replace("%health%", df.format(healthGained))
+                            .replace("%player%", victim.getName());
+
+                    killer.sendActionBar(parse(actionbarStr));
                     killer.setFoodLevel(20);
                     killer.setHealth(20.0);
                 }
@@ -804,8 +798,10 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             }
         }
 
-        String smallCapsTitle = this.toSmallCaps("editor de kit: " + ffaName);
-        Inventory editorInventory = Bukkit.createInventory(null, 54, smallCapsTitle);
+        String titleText = "Editor de Kit: " + ffaName;
+        Component title = getRawComponent(titleText);
+        Inventory editorInventory = Bukkit.createInventory(null, 54, title);
+
         this.kitEditorInventories.put(editorInventory, ffaName);
 
         setupEditorGui(editorInventory, kitItems);
@@ -815,15 +811,15 @@ public class MagmaFFA extends JavaPlugin implements Listener {
     private void setupEditorGui(Inventory inv, ItemStack[] kitItems) {
         ItemStack blackGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         ItemMeta blackMeta = blackGlass.getItemMeta();
-        blackMeta.setDisplayName(" ");
+        blackMeta.displayName(Component.text(" "));
         blackGlass.setItemMeta(blackMeta);
         for(int i = 0; i < 4; ++i) {
             if (kitItems[39 - i] != null) inv.setItem(i, kitItems[39 - i].clone());
         }
         if (kitItems[40] != null) inv.setItem(5, kitItems[40].clone());
-        inv.setItem(6, createButton(Material.LIME_STAINED_GLASS_PANE, "§aGuardar KIT Personal"));
-        inv.setItem(7, createButton(Material.YELLOW_STAINED_GLASS_PANE, "§eReestablecer al Kit Predeterminado"));
-        inv.setItem(8, createButton(Material.RED_STAINED_GLASS_PANE, "§cCerrar"));
+        inv.setItem(6, createButton(Material.LIME_STAINED_GLASS_PANE, "<green>Guardar KIT Personal"));
+        inv.setItem(7, createButton(Material.YELLOW_STAINED_GLASS_PANE, "<yellow>Reestablecer al Kit Predeterminado"));
+        inv.setItem(8, createButton(Material.RED_STAINED_GLASS_PANE, "<red>Cerrar"));
         for(int i = 9; i < 18; ++i) inv.setItem(i, blackGlass);
         for(int i = 0; i < 36; ++i) {
             if (kitItems[i] != null) {
@@ -836,7 +832,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
     private ItemStack createButton(Material mat, String name) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
+        meta.displayName(getRawComponent(name));
         item.setItemMeta(meta);
         return item;
     }
@@ -886,18 +882,18 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             Player player = (Player) sender;
 
             if (args.length != 1) {
-                player.sendMessage(PREFIX + "Uso: /spectate <jugador>");
+                player.sendMessage(getComponent("no-permission"));
                 return true;
             }
 
             Player target = Bukkit.getPlayer(args[0]);
             if (target == null || !target.isOnline()) {
-                player.sendMessage(PREFIX + "Jugador no encontrado.");
+                player.sendMessage(getComponent("player-not-found"));
                 return true;
             }
 
             if (target.equals(player)) {
-                player.sendMessage(PREFIX + "No puedes espectarte a ti mismo.");
+                player.sendMessage(getComponent("spectate-self"));
                 return true;
             }
 
@@ -909,7 +905,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
     private class FFACommandExecutor implements CommandExecutor {
         public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ChatColor.RED + "Solo jugadores.");
+                sender.sendMessage(getComponent("player-only"));
                 return true;
             }
             Player player = (Player) sender;
@@ -922,29 +918,30 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
             if (Arrays.asList("create", "setspawn", "setkit", "delete", "setlobby", "reload").contains(subCommand)) {
                 if (!player.hasPermission(ADMIN_PERMISSION)) {
-                    player.sendMessage(PREFIX + "Sin permisos."); return true;
+                    player.sendMessage(getComponent("no-permission")); return true;
                 }
 
                 switch (subCommand) {
                     case "create":
-                        if (defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(PREFIX + "Ya existe.");
+                        if (defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(getComponent("arena-exists"));
                         else {
                             String newName = args[1].toLowerCase();
                             defaultKits.put(newName, new ItemStack[41]);
                             MagmaFFA.this.saveKitsAndSpawnsConfig();
-                            player.sendMessage(PREFIX + "Arena creada: " + newName);
+                            String msg = getPrefixString() + getMessageString("arena-created").replace("%name%", newName);
+                            player.sendMessage(parse(msg));
                         }
                         break;
                     case "setspawn":
-                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(PREFIX + "No existe.");
+                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(getComponent("arena-not-found"));
                         else {
                             spawns.put(args[1].toLowerCase(), player.getLocation());
                             MagmaFFA.this.saveKitsAndSpawnsConfig();
-                            player.sendMessage(PREFIX + "Spawn seteado.");
+                            player.sendMessage(getComponent("spawn-arena-set"));
                         }
                         break;
                     case "setkit":
-                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(PREFIX + "No existe.");
+                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(getComponent("arena-not-found"));
                         else {
                             String kitName = args[1].toLowerCase();
                             ItemStack[] items = new ItemStack[41];
@@ -953,38 +950,38 @@ public class MagmaFFA extends JavaPlugin implements Listener {
                             items[40] = player.getInventory().getItemInOffHand();
                             defaultKits.put(kitName, items);
                             MagmaFFA.this.saveKitsAndSpawnsConfig();
-                            player.sendMessage(PREFIX + "Default kit actualizado.");
+                            player.sendMessage(getComponent("kit-updated"));
                         }
                         break;
                     case "delete":
-                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(PREFIX + "No existe.");
+                        if (!defaultKits.containsKey(args[1].toLowerCase())) player.sendMessage(getComponent("arena-not-found"));
                         else {
                             String delName = args[1].toLowerCase();
                             defaultKits.remove(delName);
                             spawns.remove(delName);
                             MagmaFFA.this.saveKitsAndSpawnsConfig();
-                            player.sendMessage(PREFIX + "Eliminada.");
+                            player.sendMessage(getComponent("arena-deleted"));
                         }
                         break;
                     case "setlobby":
                         MagmaFFA.this.lobbyLocation = player.getLocation();
                         MagmaFFA.this.saveLobbyLocation();
-                        player.sendMessage(PREFIX + "§aLobby/Spawn principal establecido correctamente.");
+                        player.sendMessage(getComponent("spawn-set"));
                         break;
                     case "reload":
                         MagmaFFA.this.reloadAllConfigs();
-                        player.sendMessage(PREFIX + "§aConfiguración recargada correctamente.");
+                        player.sendMessage(getComponent("config-reloaded"));
                         break;
                 }
                 return true;
             }
             else if (subCommand.equals("editkit")) {
                 if (args.length < 2) {
-                    player.sendMessage(PREFIX + "Uso: /ffa editkit <nombre>"); return true;
+                    player.sendMessage(parse(getPrefixString() + "Uso: /ffa editkit <nombre>")); return true;
                 }
                 String ffaName = args[1].toLowerCase();
                 if (!MagmaFFA.this.defaultKits.containsKey(ffaName)) {
-                    player.sendMessage(PREFIX + "Arena no encontrada.");
+                    player.sendMessage(getComponent("arena-not-found"));
                 } else {
                     MagmaFFA.this.openKitEditor(player, ffaName);
                 }
@@ -992,26 +989,83 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             }
             else if (subCommand.equals("join")) {
                 if (args.length < 2) {
-                    player.sendMessage(PREFIX + "Uso: /ffa join <nombre>"); return true;
+                    player.sendMessage(parse(getPrefixString() + "Uso: /ffa join <nombre>")); return true;
                 }
                 String ffaName = args[1].toLowerCase();
                 if (!MagmaFFA.this.defaultKits.containsKey(ffaName)) {
-                    player.sendMessage(PREFIX + "Arena no encontrada.");
+                    player.sendMessage(getComponent("arena-not-found"));
                     return true;
                 }
                 if (!MagmaFFA.this.spawns.containsKey(ffaName)) {
-                    player.sendMessage(PREFIX + "Spawn no establecido."); return true;
+                    player.sendMessage(parse(getPrefixString() + "<red>Spawn no establecido.")); return true;
                 }
 
                 ItemStack[] personalKit = playerManager.getPersonalKit(player.getUniqueId(), ffaName);
                 ItemStack[] kitItems = (personalKit != null) ? personalKit : defaultKits.get(ffaName);
 
                 if (personalKit == null) {
-                    player.sendMessage(MagmaFFA.this.TIP + "Personaliza tu kit con §8(§7/ffa editkit " + ffaName + "§8)");
+                    String tip = getPrefixString() + getMessageString("tip-editkit").replace("%arena%", ffaName);
+                    player.sendMessage(parse(tip));
                 }
 
                 MagmaFFA.this.playerFFAs.put(player.getUniqueId(), ffaName);
                 joinArena(player, ffaName, kitItems);
+                return true;
+            }
+            // --- NUEVO COMANDO JOINBEST ---
+            else if (subCommand.equals("joinbest") || subCommand.equals("best")) {
+                if (!player.hasPermission("magmaffa.player")) { // VERIFICACIÓN DE PERMISO
+                    player.sendMessage(getComponent("no-permission"));
+                    return true;
+                }
+
+                if (defaultKits.isEmpty()) {
+                    player.sendMessage(getComponent("no-arenas-available"));
+                    return true;
+                }
+
+                String bestArena = null;
+                int maxPlayers = -1;
+
+                // Iterar sobre las arenas disponibles para encontrar la más poblada
+                for (String arenaName : defaultKits.keySet()) {
+                    if (!spawns.containsKey(arenaName)) continue; // Saltar si no tiene spawn
+
+                    int count = 0;
+                    // Contar jugadores en esta arena usando el mapa interno
+                    for (String activeArena : playerFFAs.values()) {
+                        if (activeArena.equalsIgnoreCase(arenaName)) {
+                            count++;
+                        }
+                    }
+
+                    if (count > maxPlayers) {
+                        maxPlayers = count;
+                        bestArena = arenaName;
+                    }
+                }
+
+                if (bestArena == null) {
+                    player.sendMessage(getComponent("no-arenas-available"));
+                    return true;
+                }
+
+                String msg = getPrefixString() + getMessageString("joining-best-arena")
+                        .replace("%arena%", bestArena)
+                        .replace("%count%", String.valueOf(maxPlayers));
+                player.sendMessage(parse(msg));
+
+                // Reutilizar lógica de join
+                ItemStack[] personalKit = playerManager.getPersonalKit(player.getUniqueId(), bestArena);
+                ItemStack[] kitItems = (personalKit != null) ? personalKit : defaultKits.get(bestArena);
+
+                if (personalKit == null) {
+                    String tip = getPrefixString() + getMessageString("tip-editkit").replace("%arena%", bestArena);
+                    player.sendMessage(parse(tip));
+                }
+
+                MagmaFFA.this.playerFFAs.put(player.getUniqueId(), bestArena);
+                joinArena(player, bestArena, kitItems);
                 return true;
             }
             else {
@@ -1036,24 +1090,29 @@ public class MagmaFFA extends JavaPlugin implements Listener {
             player.setHealth(20.0);
             player.setFoodLevel(20);
             player.teleport(MagmaFFA.this.spawns.get(ffaName));
-            Bukkit.broadcastMessage(PREFIX + "§e" + player.getName() + " §fha entrado a la arena §e" + ffaName.toUpperCase());
+
+            String joinMsg = getPrefixString() + getMessageString("join-arena")
+                    .replace("%player%", player.getName())
+                    .replace("%name%", ffaName.toUpperCase());
+            Bukkit.broadcast(parse(joinMsg));
         }
 
         private void sendHelp(Player player) {
-            player.sendMessage(PREFIX.replace(" ▸ ", " » ") + "Comandos:");
+            player.sendMessage(parse(getPrefixString() + "Comandos:"));
             if (player.hasPermission(ADMIN_PERMISSION)) {
-                player.sendMessage("§8• §e/ffa reload §8- §7Recargar configuración");
-                player.sendMessage("§8• §e/ffa setlobby §8- §7Setear Spawn Principal");
-                player.sendMessage("§8• §e/ffa create <nombre>");
-                player.sendMessage("§8• §e/ffa setspawn <nombre>");
-                player.sendMessage("§8• §e/ffa setkit <nombre>");
+                player.sendMessage(parse("<dark_gray>• <yellow>/ffa reload <dark_gray>- <gray>Recargar configuración"));
+                player.sendMessage(parse("<dark_gray>• <yellow>/ffa setlobby <dark_gray>- <gray>Setear Spawn Principal"));
+                player.sendMessage(parse("<dark_gray>• <yellow>/ffa create <nombre>"));
+                player.sendMessage(parse("<dark_gray>• <yellow>/ffa setspawn <nombre>"));
+                player.sendMessage(parse("<dark_gray>• <yellow>/ffa setkit <nombre>"));
             }
-            player.sendMessage("§8• §e/spawn §8- §7Ir al Lobby");
-            player.sendMessage("§8• §e/ffa join <nombre> §8- §7Entrar a una arena");
-            player.sendMessage("§8• §e/spectate <jugador> §8- §7Espectar a un jugador");
-            player.sendMessage("§8• §e/ffa editkit <nombre>");
+            player.sendMessage(parse("<dark_gray>• <yellow>/spawn <dark_gray>- <gray>Ir al Lobby"));
+            player.sendMessage(parse("<dark_gray>• <yellow>/ffa join <nombre> <dark_gray>- <gray>Entrar a una arena"));
+            player.sendMessage(parse("<dark_gray>• <yellow>/ffa joinbest <dark_gray>- <gray>Entrar a la arena con más jugadores"));
+            player.sendMessage(parse("<dark_gray>• <yellow>/spectate <jugador> <dark_gray>- <gray>Espectar a un jugador"));
+            player.sendMessage(parse("<dark_gray>• <yellow>/ffa editkit <nombre>"));
             if (!MagmaFFA.this.defaultKits.isEmpty()) {
-                player.sendMessage(PREFIX.replace(" ▸ ", " » ") + "Arenas: " + String.join(", ", defaultKits.keySet()));
+                player.sendMessage(parse(getPrefixString() + "Arenas: <gray>" + String.join(", ", defaultKits.keySet())));
             }
         }
     }
@@ -1066,6 +1125,7 @@ public class MagmaFFA extends JavaPlugin implements Listener {
 
             if (args.length == 1) {
                 options.add("join");
+                options.add("joinbest");
                 options.add("editkit");
                 if (player.hasPermission(ADMIN_PERMISSION)) {
                     options.addAll(Arrays.asList("create", "setspawn", "setkit", "delete", "setlobby", "reload"));

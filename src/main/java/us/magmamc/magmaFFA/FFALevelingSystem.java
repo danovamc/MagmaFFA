@@ -29,21 +29,16 @@ public class FFALevelingSystem implements Listener {
     private final Map<UUID, Map<UUID, Long>> killCooldowns = new ConcurrentHashMap<>();
     private final Random random = new Random();
     private final int COOLDOWN_SECONDS = 150;
-    private final String PREFIX;
 
-    public FFALevelingSystem(MagmaFFA plugin, String prefix) {
+    public FFALevelingSystem(MagmaFFA plugin) {
         this.plugin = plugin;
-        this.PREFIX = prefix;
         this.setupXpRequirements();
         this.loadLevelConfig();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    // --- NUEVO MÉTODO PARA RELOAD ---
     public void reloadConfig() {
         this.levelRewards.clear();
-        // xpRequirements se mantiene igual porque está "hardcoded" en setupXpRequirements,
-        // pero recargamos rewards y el archivo.
         this.loadLevelConfig();
     }
 
@@ -77,6 +72,12 @@ public class FFALevelingSystem implements Listener {
                     int level = Integer.parseInt(levelKey);
                     List<String> rewards = levelsSection.getStringList(levelKey + ".rewards");
                     this.levelRewards.put(level, rewards);
+
+                    if (levelsSection.contains(levelKey + ".xp_required")) {
+                        int xp = levelsSection.getInt(levelKey + ".xp_required");
+                        this.xpRequirements.put(level, xp);
+                    }
+
                 } catch (NumberFormatException var6) {
                     this.plugin.getLogger().warning("Invalid level in levels.yml: " + levelKey);
                 }
@@ -85,13 +86,14 @@ public class FFALevelingSystem implements Listener {
     }
 
     private void setupDefaultLevelConfig() {
+        // No usamos prefix aquí para los comandos vanilla, solo para mensajes de chat
         for(int level = 1; level <= 25; ++level) {
             List<String> defaultRewards = new ArrayList<>();
-            defaultRewards.add("say " + this.PREFIX + "¡El jugador %player% ha alcanzado el nivel " + level + "!");
+            // Usamos broadcast vanilla o minimessage broadcast
+            defaultRewards.add("minecraft:tellraw %player% \"¡Bienvenido al nivel " + level + "!\"");
             if (level % 5 == 0) defaultRewards.add("give %player% diamond 1");
             if (level == 25) {
                 defaultRewards.add("give %player% netherite_ingot 1");
-                defaultRewards.add("broadcast " + this.PREFIX + "¡%player% ha alcanzado el nivel máximo 25 en FFA!");
             }
             this.levelConfig.set("levels." + level + ".rewards", defaultRewards);
             this.levelConfig.set("levels." + level + ".xp_required", this.xpRequirements.get(level));
@@ -120,38 +122,54 @@ public class FFALevelingSystem implements Listener {
             UUID victimUUID = victim.getUniqueId();
             if (this.isOnCooldown(killerUUID, victimUUID)) {
                 long timeLeft = this.getRemainingCooldown(killerUUID, victimUUID);
-                killer.sendMessage(this.PREFIX + "Cooldown activo para " + victim.getName() + ". Espera " + this.formatTime(timeLeft) + " para ganar XP.");
+
+                String msg = plugin.getPrefixString() + plugin.getMessageString("cooldown-active")
+                        .replace("%player%", victim.getName())
+                        .replace("%time%", this.formatTime(timeLeft));
+                killer.sendMessage(plugin.parse(msg));
                 return;
             }
 
             int xpGained = this.random.nextInt(16) + 5;
-            this.addXp(killer, xpGained);
+            this.addXp(killer, xpGained, victim.getName());
             this.setKillCooldown(killerUUID, victimUUID);
-            killer.sendMessage(this.PREFIX + "Has ganado §e" + xpGained + " XP§f por eliminar a " + victim.getName());
         }
     }
 
-    public void addXp(Player player, int amount) {
+    public void addXp(Player player, int amount, String victimName) {
         UUID uuid = player.getUniqueId();
         int currentLevel = plugin.getPlayerManager().getLevel(uuid);
         int currentXp = plugin.getPlayerManager().getXp(uuid);
 
         if (currentLevel >= 25) {
-            player.sendMessage(this.PREFIX + "Ya estás en el nivel máximo.");
+            player.sendMessage(plugin.getComponent("level-max"));
         } else {
             int newXp = currentXp + amount;
             plugin.getPlayerManager().setXp(uuid, newXp);
+
+            String msg = plugin.getPrefixString() + plugin.getMessageString("xp-gain")
+                    .replace("%amount%", String.valueOf(amount))
+                    .replace("%player%", victimName != null ? victimName : "Enemigo");
+            player.sendMessage(plugin.parse(msg));
+
             this.checkLevelUp(player, currentLevel, newXp);
         }
+    }
+
+    public void addXp(Player player, int amount) {
+        addXp(player, amount, null);
     }
 
     private void checkLevelUp(Player player, int currentLevel, int currentXp) {
         if (currentLevel < 25) {
             int nextLevel = currentLevel + 1;
-            int requiredXp = this.xpRequirements.get(nextLevel);
+            int requiredXp = this.xpRequirements.getOrDefault(nextLevel, 999999);
             if (currentXp >= requiredXp) {
                 plugin.getPlayerManager().setLevel(player.getUniqueId(), nextLevel);
-                player.sendMessage(this.PREFIX + "§a¡Has subido al nivel " + nextLevel + "!");
+
+                String msg = plugin.getPrefixString() + plugin.getMessageString("level-up").replace("%level%", String.valueOf(nextLevel));
+                player.sendMessage(plugin.parse(msg));
+
                 this.giveRewards(player, nextLevel);
                 this.checkLevelUp(player, nextLevel, currentXp);
             }
@@ -208,7 +226,7 @@ public class FFALevelingSystem implements Listener {
             case "next_level_xp": {
                 int nextLevel = level + 1;
                 if (nextLevel > 25) return "MAX";
-                return String.valueOf(this.xpRequirements.get(nextLevel));
+                return String.valueOf(this.xpRequirements.getOrDefault(nextLevel, 0));
             }
             case "progress_percent":
                 return String.valueOf(getProgressPercentage(level, xp));
@@ -217,7 +235,7 @@ public class FFALevelingSystem implements Listener {
             case "xp_needed": {
                 int nextLevel = level + 1;
                 if (nextLevel > 25) return "0";
-                return String.valueOf(Math.max(0, this.xpRequirements.get(nextLevel) - xp));
+                return String.valueOf(Math.max(0, this.xpRequirements.getOrDefault(nextLevel, 0) - xp));
             }
             default: return null;
         }
@@ -226,10 +244,13 @@ public class FFALevelingSystem implements Listener {
     private int getProgressPercentage(int currentLevel, int currentXp) {
         if (currentLevel >= 25) return 100;
         int nextLevel = currentLevel + 1;
-        int requiredXp = this.xpRequirements.get(nextLevel);
-        int previousLevelXp = this.xpRequirements.get(currentLevel);
-        int xpForThisLevel = requiredXp - previousLevelXp;
-        int xpProgress = currentXp - previousLevelXp;
+        int requiredXp = this.xpRequirements.getOrDefault(nextLevel, 1);
+        int previousLevelXp = this.xpRequirements.getOrDefault(currentLevel, 0);
+
+        // Evitar división por cero si la config está mal
+        int xpForThisLevel = Math.max(1, requiredXp - previousLevelXp);
+        int xpProgress = Math.max(0, currentXp - previousLevelXp);
+
         return (int)((double)xpProgress / (double)xpForThisLevel * 100.0D);
     }
 
